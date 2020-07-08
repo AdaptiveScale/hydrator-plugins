@@ -29,7 +29,12 @@ import io.cdap.cdap.etl.api.validation.ValidatingInputFormat;
 import io.cdap.plugin.format.input.PathTrackingConfig;
 import io.cdap.plugin.format.input.PathTrackingInputFormatProvider;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 
@@ -88,6 +93,27 @@ public class DelimitedInputFormatProvider extends PathTrackingInputFormatProvide
     @Nullable
     @Description(DELIMITER_DESC)
     private String delimiter;
+
+    @Nullable
+    @Override
+    public Schema getSchema() {
+      if (containsMacro(NAME_SCHEMA)) {
+        return null;
+      }
+      if (schema == null) {
+        try {
+          return getDefaultSchema(null);
+        } catch (IOException e) {
+          throw new IllegalArgumentException("Invalid schema: " + e.getMessage(), e);
+        }
+      }
+      try {
+        return Schema.parseJson(schema);
+      } catch (IOException e) {
+        throw new IllegalArgumentException("Invalid schema: " + e.getMessage(), e);
+      }
+//      return super.getSchema();
+    }
   }
 
   private static PluginClass getPluginClass() {
