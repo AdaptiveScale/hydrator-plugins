@@ -68,11 +68,6 @@ public class DelimitedConfig extends PathTrackingConfig {
         throw new IllegalArgumentException("Invalid schema: " + e.getMessage(), e);
       }
     }
-//    try {
-//      return Schema.parseJson(schema);
-//    } catch (IOException e) {
-//      throw new IllegalArgumentException("Invalid schema: " + e.getMessage(), e);
-//    }
     return super.getSchema();
   }
 

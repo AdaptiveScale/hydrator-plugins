@@ -32,10 +32,10 @@ import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumReader;
 
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
+import javax.annotation.Nullable;
 
 /**
  * Provides and sets up configuration for an AvroInputFormat.
@@ -73,6 +73,9 @@ public class AvroInputFormatProvider extends PathTrackingInputFormatProvider<Avr
     super.validate(context);
   }
 
+  /**
+   * Common config for Avro format
+   */
   public static class Conf extends PathTrackingConfig {
 
     @Macro
