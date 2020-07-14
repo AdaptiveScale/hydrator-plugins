@@ -16,15 +16,25 @@
 
 package io.cdap.plugin.format.avro.input;
 
+import com.google.common.base.Strings;
 import io.cdap.cdap.api.annotation.Description;
+import io.cdap.cdap.api.annotation.Macro;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.plugin.PluginClass;
+import io.cdap.cdap.etl.api.validation.FormatContext;
 import io.cdap.cdap.etl.api.validation.ValidatingInputFormat;
 import io.cdap.plugin.format.input.PathTrackingConfig;
 import io.cdap.plugin.format.input.PathTrackingInputFormatProvider;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.DatumReader;
 
+import javax.annotation.Nullable;
+import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -33,14 +43,14 @@ import java.util.Map;
 @Plugin(type = ValidatingInputFormat.PLUGIN_TYPE)
 @Name(AvroInputFormatProvider.NAME)
 @Description(AvroInputFormatProvider.DESC)
-public class AvroInputFormatProvider extends PathTrackingInputFormatProvider<PathTrackingConfig> {
+public class AvroInputFormatProvider extends PathTrackingInputFormatProvider<AvroInputFormatProvider.Conf> {
   static final String NAME = "avro";
   static final String DESC = "Plugin for reading files in avro format.";
   public static final PluginClass PLUGIN_CLASS =
-    new PluginClass(ValidatingInputFormat.PLUGIN_TYPE, NAME, DESC, AvroInputFormatProvider.class.getName(),
-                    "conf", PathTrackingConfig.FIELDS);
+      new PluginClass(ValidatingInputFormat.PLUGIN_TYPE, NAME, DESC, AvroInputFormatProvider.class.getName(),
+          "conf", PathTrackingConfig.FIELDS);
 
-  public AvroInputFormatProvider(PathTrackingConfig conf) {
+  public AvroInputFormatProvider(AvroInputFormatProvider.Conf conf) {
     super(conf);
   }
 
@@ -56,4 +66,54 @@ public class AvroInputFormatProvider extends PathTrackingInputFormatProvider<Pat
       properties.put("avro.schema.input.key", schema.toString());
     }
   }
+
+  @Override
+  public void validate(FormatContext context) {
+    getSchema(context);
+    super.validate(context);
+  }
+
+  public static class Conf extends PathTrackingConfig {
+
+    @Macro
+    @Nullable
+    @Description(NAME_SCHEMA)
+    public String schema;
+
+    @Nullable
+    @Override
+    public Schema getSchema() {
+      return super.getSchema();
+    }
+  }
+
+  @Nullable
+  @Override
+  public Schema getSchema(FormatContext context) {
+    if (conf.containsMacro("schema")) {
+      return super.getSchema(context);
+    }
+    if (!Strings.isNullOrEmpty(conf.schema)) {
+      return super.getSchema(context);
+    }
+    DatumReader<GenericRecord> datumReader = new GenericDatumReader<GenericRecord>();
+    String filePath = conf.getProperties().getProperties().getOrDefault("path", null);
+    if (filePath == null) {
+      return super.getSchema(context);
+    }
+    File file = new File(filePath);
+    try {
+      DataFileReader<GenericRecord> dataFileReader = new DataFileReader<GenericRecord>(file, datumReader);
+      GenericRecord firstRecord;
+      if (!dataFileReader.hasNext()) {
+        return null;
+      }
+      firstRecord = dataFileReader.next();
+      return Schema.parseJson(firstRecord.getSchema().toString());
+    } catch (IOException e) {
+      context.getFailureCollector().addFailure("Schema parse error", e.getMessage());
+    }
+    return super.getSchema(context);
+  }
+
 }

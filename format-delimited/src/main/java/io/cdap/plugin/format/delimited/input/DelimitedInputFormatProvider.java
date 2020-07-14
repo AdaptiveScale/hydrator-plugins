@@ -112,7 +112,6 @@ public class DelimitedInputFormatProvider extends PathTrackingInputFormatProvide
       } catch (IOException e) {
         throw new IllegalArgumentException("Invalid schema: " + e.getMessage(), e);
       }
-//      return super.getSchema();
     }
   }
 
