@@ -94,25 +94,6 @@ public class DelimitedInputFormatProvider extends PathTrackingInputFormatProvide
     @Description(DELIMITER_DESC)
     private String delimiter;
 
-    @Nullable
-    @Override
-    public Schema getSchema() {
-      if (containsMacro(NAME_SCHEMA)) {
-        return null;
-      }
-      if (schema == null) {
-        try {
-          return getDefaultSchema(null);
-        } catch (IOException e) {
-          throw new IllegalArgumentException("Invalid schema: " + e.getMessage(), e);
-        }
-      }
-      try {
-        return Schema.parseJson(schema);
-      } catch (IOException e) {
-        throw new IllegalArgumentException("Invalid schema: " + e.getMessage(), e);
-      }
-    }
   }
 
   private static PluginClass getPluginClass() {

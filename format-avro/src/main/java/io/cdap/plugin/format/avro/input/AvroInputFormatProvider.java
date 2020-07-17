@@ -17,14 +17,17 @@
 package io.cdap.plugin.format.avro.input;
 
 import com.google.common.base.Strings;
+import com.google.common.io.Files;
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Macro;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.plugin.PluginClass;
+import io.cdap.cdap.etl.api.FailureCollector;
 import io.cdap.cdap.etl.api.validation.FormatContext;
 import io.cdap.cdap.etl.api.validation.ValidatingInputFormat;
+import io.cdap.plugin.format.avro.AvroToStructuredTransformer;
 import io.cdap.plugin.format.input.PathTrackingConfig;
 import io.cdap.plugin.format.input.PathTrackingInputFormatProvider;
 import org.apache.avro.file.DataFileReader;
@@ -34,6 +37,7 @@ import org.apache.avro.io.DatumReader;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Map;
 import javax.annotation.Nullable;
 
@@ -104,7 +108,7 @@ public class AvroInputFormatProvider extends PathTrackingInputFormatProvider<Avr
     if (filePath == null) {
       return super.getSchema(context);
     }
-    File file = new File(filePath);
+    File file = pickFile(filePath, "avro", context.getFailureCollector());
     try {
       DataFileReader<GenericRecord> dataFileReader = new DataFileReader<GenericRecord>(file, datumReader);
       GenericRecord firstRecord;
@@ -112,11 +116,50 @@ public class AvroInputFormatProvider extends PathTrackingInputFormatProvider<Avr
         return null;
       }
       firstRecord = dataFileReader.next();
-      return Schema.parseJson(firstRecord.getSchema().toString());
+      return new AvroToStructuredTransformer().convertSchema(firstRecord.getSchema());
     } catch (IOException e) {
       context.getFailureCollector().addFailure("Schema parse error", e.getMessage());
     }
     return super.getSchema(context);
+  }
+
+  /**
+   * Checks whether provided path is directory or file and returns file based on the following conditions:
+   * if provided path directs to file - file from the provided path will be returned
+   * if provided path directs to a directory - first file matching the extension will be provided
+   * if extension is null first file from the directory will be returned
+   *
+   * @param path              path from config
+   * @param matchingExtension extension to match when searching for file in directory
+   * @param collector         {@link FailureCollector}
+   * @return {@link File}
+   */
+  private File pickFile(String path, String matchingExtension, FailureCollector collector) {
+    final File filePath = Paths.get(path).toFile();
+    if (filePath.isFile()) {
+      return filePath;
+    }
+    // read directory files
+    final File[] files = filePath.listFiles();
+    if (files == null) {
+      collector.addFailure("Path issue", "Cannot read files from provided path");
+      return null;
+    }
+    if (files.length == 0) {
+      collector.addFailure("Path issue", "Provided directory is empty");
+      return null;
+    }
+    // find first avro file
+    for (File file : files) {
+      if (matchingExtension == null) {
+        return file;
+      }
+      if (Files.getFileExtension(file.getName()).equals(matchingExtension)) {
+        return file;
+      }
+    }
+    collector.addFailure("Path issue", "Could not find AVRO file found in provided path");
+    return null;
   }
 
 }
