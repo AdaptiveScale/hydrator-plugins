@@ -16,7 +16,6 @@
 
 package io.cdap.plugin.format.parquet.input;
 
-import com.google.common.io.Files;
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Macro;
 import io.cdap.cdap.api.annotation.Name;
@@ -25,17 +24,18 @@ import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.plugin.PluginClass;
 import io.cdap.cdap.etl.api.validation.FormatContext;
 import io.cdap.cdap.etl.api.validation.ValidatingInputFormat;
+import io.cdap.plugin.common.batch.JobUtils;
 import io.cdap.plugin.format.input.PathTrackingConfig;
 import io.cdap.plugin.format.input.PathTrackingInputFormatProvider;
 import org.apache.avro.generic.GenericData;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapreduce.Job;
 import org.apache.parquet.Strings;
 import org.apache.parquet.avro.AvroParquetReader;
 import org.apache.parquet.hadoop.ParquetReader;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.Map;
 import javax.annotation.Nullable;
 
@@ -81,10 +81,10 @@ public class ParquetInputFormatProvider extends
     String filePath = conf.getProperties().getProperties().getOrDefault("path", null);
 
     try {
-      File file = pickFile(filePath, "parquet");
-      final ParquetReader reader = AvroParquetReader.<GenericData.Record>builder(
-          new Path(file.getAbsolutePath()))
-          .build();
+      Job job = JobUtils.createInstance();
+      Configuration hconf = job.getConfiguration();
+      final Path file = conf.getFilePathForSchemaGeneration(filePath, "parquet", hconf);
+      final ParquetReader reader = AvroParquetReader.builder(file).build();
       GenericData.Record record = (GenericData.Record) reader.read();
       return Schema.parseJson(record.getSchema().toString());
     } catch (IOException e) {
@@ -104,38 +104,4 @@ public class ParquetInputFormatProvider extends
     public String schema;
   }
 
-  /**
-   * Checks whether provided path is directory or file and returns file based on the following
-   * conditions: if provided path directs to file - file from the provided path will be returned if
-   * provided path directs to a directory - first file matching the extension will be provided if
-   * extension is null first file from the directory will be returned
-   *
-   * @param path              path from config
-   * @param matchingExtension extension to match when searching for file in directory
-   * @return {@link File}
-   */
-  private File pickFile(String path, String matchingExtension) {
-    final File filePath = Paths.get(path).toFile();
-    if (filePath.isFile()) {
-      return filePath;
-    }
-    // read directory files
-    final File[] files = filePath.listFiles();
-    if (files == null) {
-      throw new IllegalArgumentException("Cannot read files from provided path");
-    }
-    if (files.length == 0) {
-      throw new IllegalArgumentException("Provided directory is empty");
-    }
-    // find first file
-    for (File file : files) {
-      if (matchingExtension == null) {
-        return file;
-      }
-      if (Files.getFileExtension(file.getName()).equals(matchingExtension)) {
-        return file;
-      }
-    }
-    throw new IllegalArgumentException("Could not find a file in provided path");
-  }
 }

@@ -17,19 +17,23 @@
 package io.cdap.plugin.format.delimited.input;
 
 import com.google.common.base.Strings;
-import com.google.common.io.Files;
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Macro;
 import io.cdap.cdap.api.data.schema.Schema;
 import io.cdap.cdap.api.plugin.PluginPropertyField;
 import io.cdap.cdap.etl.api.validation.FormatContext;
+import io.cdap.plugin.common.batch.JobUtils;
 import io.cdap.plugin.format.input.PathTrackingConfig;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapreduce.Job;
+
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
-import java.nio.file.Paths;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -130,8 +134,13 @@ public class DelimitedConfig extends PathTrackingConfig {
         "path", ""
     );
 
-    File file = pickFile(path, format.equals("delimited") ? null : format);
-    BufferedReader bufferedReader = new BufferedReader(new FileReader(file));
+    Job job = JobUtils.createInstance();
+    Configuration conf = job.getConfiguration();
+    final Path file = getFilePathForSchemaGeneration(path,
+        format.equals("delimited") ? null : format, conf);
+    final FileSystem fileSystem = FileSystem.get(file.toUri(), conf);
+    FSDataInputStream input = fileSystem.open(file);
+    BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(input));
     String line = bufferedReader.readLine();
     if (line == null) {
       return null;
@@ -155,38 +164,4 @@ public class DelimitedConfig extends PathTrackingConfig {
     return Schema.recordOf("text", fields);
   }
 
-  /**
-   * Checks whether provided path is directory or file and returns file based on the following
-   * conditions: if provided path directs to file - file from the provided path will be returned if
-   * provided path directs to a directory - first file matching the extension will be provided if
-   * extension is null first file from the directory will be returned
-   *
-   * @param path              path from config
-   * @param matchingExtension extension to match when searching for file in directory
-   * @return {@link File}
-   */
-  private File pickFile(String path, String matchingExtension) {
-    final File filePath = Paths.get(path).toFile();
-    if (filePath.isFile()) {
-      return filePath;
-    }
-    // read directory files
-    final File[] files = filePath.listFiles();
-    if (files == null) {
-      throw new IllegalArgumentException("Cannot read files from provided path");
-    }
-    if (files.length == 0) {
-      throw new IllegalArgumentException("Provided directory is empty");
-    }
-    // find first delimited file
-    for (File file : files) {
-      if (matchingExtension == null) {
-        return file;
-      }
-      if (Files.getFileExtension(file.getName()).equals(matchingExtension)) {
-        return file;
-      }
-    }
-    throw new IllegalArgumentException("Could not find a delimited file found in provided path");
-  }
 }
