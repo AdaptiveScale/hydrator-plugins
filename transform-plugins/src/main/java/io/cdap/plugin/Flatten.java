@@ -30,7 +30,6 @@ import io.cdap.cdap.api.plugin.PluginConfig;
 import io.cdap.cdap.etl.api.Emitter;
 import io.cdap.cdap.etl.api.FailureCollector;
 import io.cdap.cdap.etl.api.PipelineConfigurer;
-import io.cdap.cdap.etl.api.StageSubmitterContext;
 import io.cdap.cdap.etl.api.Transform;
 import io.cdap.cdap.etl.api.TransformContext;
 
@@ -95,60 +94,44 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
   }
 
   @Override
-  public void prepareRun(StageSubmitterContext context) throws Exception {
-    super.prepareRun(context);
-    FailureCollector failureCollector = context.getFailureCollector();
-    Schema inputSchema = context.getInputSchema();
+  public void initialize(TransformContext context) throws Exception {
+    super.initialize(context);
 
-    if (inputSchema == null) {
-      failureCollector.addFailure("Input schema is null.", "Input schema cannot be null.");
-      failureCollector.getOrThrowException();
-      return;
-    }
+    FailureCollector failureCollector = context.getFailureCollector();
 
     List<String> fieldsToFlatten = config.getFieldsToFlatten();
-
     if (fieldsToFlatten == null || fieldsToFlatten.isEmpty()) {
       failureCollector.addFailure("No field(s) selected for flattening.",
                                   "Choose field(s) to flatten.");
       failureCollector.getOrThrowException();
-      return;
     }
-
-    checkSchemaType(inputSchema, fieldsToFlatten, failureCollector);
-    failureCollector.getOrThrowException();
-  }
-
-  @Override
-  public void initialize(TransformContext context) throws Exception {
-    super.initialize(context);
 
     Schema inputSchema = context.getInputSchema();
     if (inputSchema == null) {
-      return;
-    }
-
-    List<String> fieldsToFlatten = config.getFieldsToFlatten();
-    if (fieldsToFlatten == null) {
       return;
     }
 
     List<OutputFieldInfo> inputOutputMapping = createOutputFieldsInfo(inputSchema, fieldsToFlatten,
                                                                       config.getLevelToLimitFlattening());
     this.inputOutputMapping = handleDuplicateFieldName(inputOutputMapping, config.getPrefix());
-    outputSchema = generateOutputSchema(inputSchema, inputOutputMapping);
+    this.outputSchema = generateOutputSchema(inputSchema, inputOutputMapping);
   }
 
 
   @Override
   public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter) throws Exception {
+    if (outputSchema == null) {
+      List<OutputFieldInfo> inputOutputMapping = createOutputFieldsInfo(input.getSchema(), config.getFieldsToFlatten(),
+                                                                        config.getLevelToLimitFlattening());
+      this.inputOutputMapping = handleDuplicateFieldName(inputOutputMapping, config.getPrefix());
+      this.outputSchema = generateOutputSchema(input.getSchema(), inputOutputMapping);
+    }
     StructuredRecord.Builder builder = StructuredRecord.builder(outputSchema);
 
     for (Schema.Field field : outputSchema.getFields()) {
       OutputFieldInfo outputFieldInfo = inputOutputMapping.get(field.getName());
       Object value = outputFieldInfo.getValue(input);
       builder.set(field.getName(), value);
-
     }
     emitter.emit(builder.build());
   }
@@ -159,7 +142,7 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
     List<OutputFieldInfo> mapping = new ArrayList<>();
 
     if (fields == null || fields.isEmpty()) {
-      return new ArrayList<>(); //todo take consideration
+      return new ArrayList<>();
     }
     for (Schema.Field field : fields) {
       String name = field.getName();
@@ -223,7 +206,6 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
     for (OutputFieldInfo outputFieldInfo : outputFieldInfos) {
       result.add(OutputFieldInfo.fromChild(outputFieldInfo, field));
     }
-
     return result;
   }
 
