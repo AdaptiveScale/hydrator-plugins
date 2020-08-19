@@ -46,13 +46,13 @@ import javax.annotation.Nullable;
 /**
  * Transform parses a JSON Object into {@link StructuredRecord}.
  */
-@Plugin(type = "transform")
+@Plugin(type = Transform.PLUGIN_TYPE)
 @Name("Flatten")
-@Description("Parses JSON Object into a Structured Record.")
+@Description("Flatten is a transform plugin that flattens nested data structures.")
 public final class Flatten extends Transform<StructuredRecord, StructuredRecord> {
 
   private Config config;
-  private Schema outSchema;
+  private Schema outputSchema;
   private Map<String, OutputFieldInfo> inputOutputMapping = Maps.newHashMap();
 
 
@@ -88,7 +88,7 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
     for (String field : fieldsToFlatten) {
       Schema schemaField = inputSchema.getField(field).getSchema();
       if (!isRecord(schemaField)) {
-        collector.addFailure(String.format("'%s' cannot be flattened."),
+        collector.addFailure(String.format("'%s' cannot be flattened.", field),
                              "Only fields with schema type of `record` can be flattened.");
       }
     }
@@ -136,15 +136,15 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
     List<OutputFieldInfo> inputOutputMapping = createOutputFieldsInfo(inputSchema, fieldsToFlatten,
                                                                       config.getLevelToLimitFlattening());
     this.inputOutputMapping = handleDuplicateFieldName(inputOutputMapping, config.getPrefix());
-    outSchema = generateOutputSchema(inputSchema, inputOutputMapping);
+    outputSchema = generateOutputSchema(inputSchema, inputOutputMapping);
   }
 
 
   @Override
   public void transform(StructuredRecord input, Emitter<StructuredRecord> emitter) throws Exception {
-    StructuredRecord.Builder builder = StructuredRecord.builder(outSchema);
+    StructuredRecord.Builder builder = StructuredRecord.builder(outputSchema);
 
-    for (Schema.Field field : outSchema.getFields()) {
+    for (Schema.Field field : outputSchema.getFields()) {
       OutputFieldInfo outputFieldInfo = inputOutputMapping.get(field.getName());
       Object value = outputFieldInfo.getValue(input);
       builder.set(field.getName(), value);
@@ -267,14 +267,10 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
    */
   public static class Config extends PluginConfig {
 
-    public static final String PROPERTY_NAME_OUT_PUT_SCHEMA = "schema";
     public static final String PROPERTY_NAME_FIELDS_TO_MAP = "fieldsToFlatten";
     public static final String PROPERTY_NAME_LEVEL_TO_LIMIT = "levelToLimitFlattening";
     public static final String PROPERTY_NAME_PREFIX = "prefix";
 
-    @Name(PROPERTY_NAME_OUT_PUT_SCHEMA)
-    @Description("Output schema")
-    private String schema;
 
     @Macro
     @Name(PROPERTY_NAME_FIELDS_TO_MAP)
@@ -294,10 +290,6 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
       "This can be used to fix conflicts that can occur if fields have the same name after flattening. " +
       "The prefix is added as <prefix>_<flattened_name >")
     private String prefix;
-
-    public Config(String schema) {
-      this.schema = schema;
-    }
 
     public List<String> getFieldsToFlatten() {
       if (containsMacro(PROPERTY_NAME_FIELDS_TO_MAP) || Strings.isNullOrEmpty(fieldsToFlatten)) {
@@ -381,7 +373,7 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
     private Schema fieldSchema;
 
     /**
-     * Get value in structured Record, if {@link Node#next} property is not null, value for Output Field is inside
+     * Get value in StructuredRecord, if {@link Node#next} property is not null, value for Output Field is inside
      * StructuredRecord
      *
      * @param object StructuredRecord
