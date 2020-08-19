@@ -1,4 +1,4 @@
-# JSON Parser Transform
+# Flatten Transform
 
 ## Description
 Flatten is a transform plugin that flattens nested data structures.

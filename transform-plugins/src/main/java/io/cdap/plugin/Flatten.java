@@ -1,5 +1,5 @@
 /*
- * Copyright © 2015-2019 Cask Data, Inc.
+ * Copyright © 2020 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -43,7 +43,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Transform parses a JSON Object into {@link StructuredRecord}.
+ * Flatten is a transform plugin that flattens nested data structures.
  */
 @Plugin(type = Transform.PLUGIN_TYPE)
 @Name("Flatten")
@@ -53,7 +53,6 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
   private Config config;
   private Schema outputSchema;
   private Map<String, OutputFieldInfo> inputOutputMapping = Maps.newHashMap();
-
 
   @Override
   public void configurePipeline(PipelineConfigurer pipelineConfigurer) {
@@ -253,16 +252,15 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
     public static final String PROPERTY_NAME_LEVEL_TO_LIMIT = "levelToLimitFlattening";
     public static final String PROPERTY_NAME_PREFIX = "prefix";
 
-
     @Macro
     @Name(PROPERTY_NAME_FIELDS_TO_MAP)
-    @Description("Which field should be checked for null values.")
+    @Description("Specifies the list of fields in the input schema to be flattened.")
     private String fieldsToFlatten;
 
     @Macro
     @Nullable
     @Name(PROPERTY_NAME_LEVEL_TO_LIMIT)
-    @Description("Input field to be parsed as JSON")
+    @Description("Limit flattening to a certain level in nested structures.")
     private String levelToLimitFlattening;
 
     @Macro
@@ -373,7 +371,9 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
     }
 
     /**
-     * @return Output field Schema
+     * Get Output Field Schema
+     *
+     * @return Schema
      */
     public Schema getOutputSchema() {
       if (next == null) {
