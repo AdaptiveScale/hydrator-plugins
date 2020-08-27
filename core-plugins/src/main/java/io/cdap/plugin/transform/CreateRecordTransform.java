@@ -21,6 +21,7 @@ import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.reflect.TypeToken;
 import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
@@ -35,6 +36,7 @@ import io.cdap.cdap.etl.api.TransformContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +106,7 @@ public class CreateRecordTransform extends Transform<StructuredRecord, Structure
   private Map<Schema, Schema> schemaCache = Maps.newHashMap();
   private static final Gson GSON = new Gson();
   private static final Logger LOG = LoggerFactory.getLogger(CreateRecordTransform.class);
+  private JsonElement fieldMappingJson = null;
 
   public CreateRecordTransform(CreateRecordTransformConfig createRecordTransformConfig) {
     this.createRecordTransformConfig = createRecordTransformConfig;
@@ -137,7 +140,9 @@ public class CreateRecordTransform extends Transform<StructuredRecord, Structure
                                                     "Please provide output schema");
     }
     StructuredRecord.Builder builder = StructuredRecord.builder(outputSchema);
-    final JsonElement fieldMappingJson = createRecordTransformConfig.getFieldMappingJson();
+    if (fieldMappingJson == null) {
+      fieldMappingJson = getFinalFieldMappingJson(getContext().getInputSchema());
+    }
     mapFields(builder, structuredRecord, fieldMappingJson, outputSchema);
     emitter.emit(builder.build());
   }
@@ -190,6 +195,112 @@ public class CreateRecordTransform extends Transform<StructuredRecord, Structure
     return Schema.recordOf(recordName, fieldList);
   }
 
+  private List<List<String>> generateFieldMapForInputSchema(List<String> path, Schema inputSchema) {
+    List<List<String>> map = new ArrayList<>();
+    for (Schema.Field field : inputSchema.getFields()) {
+      List<String> fieldPath = new ArrayList<>(path);
+      fieldPath.add(field.getName());
+      if (field.getSchema().getType().equals(Schema.Type.RECORD)) {
+        map.addAll(generateFieldMapForInputSchema(fieldPath, field.getSchema()));
+      } else {
+        map.add(fieldPath);
+      }
+    }
+    return map;
+  }
+
+  /**
+   * Converts field map to array list
+   *
+   * @param fieldMap field map from config
+   * @return {@link List<List<String>>}
+   */
+  private List<List<String>> fieldMapToList(JsonElement fieldMap) {
+    List<List<String>> map = new ArrayList<>();
+    final Type listType = new TypeToken<List<String>>() {
+    }.getType();
+
+    for (Map.Entry<String, JsonElement> mapEntry : fieldMap.getAsJsonObject().entrySet()) {
+      if (mapEntry.getValue().isJsonObject()) {
+        map.addAll(fieldMapToList(mapEntry.getValue()));
+      } else {
+        map.add(GSON.fromJson(mapEntry.getValue(), listType));
+      }
+    }
+    return map;
+  }
+
+  /**
+   * Calculates difference between two field mapping lists
+   *
+   * @param source
+   * @param target
+   * @return
+   */
+  private List<List<String>> differenceBetweenMaps(List<List<String>> source, List<List<String>> target) {
+    List<List<String>> difference = new ArrayList<>();
+    for (List<String> item : source) {
+      if (!target.contains(item)) {
+        difference.add(item);
+      }
+    }
+    return difference;
+  }
+
+  /**
+   * Add non mapped fields to field map
+   *
+   * @param filedMappings
+   * @param differenceList
+   * @return
+   */
+  private JsonElement includeMissingFields(JsonElement filedMappings, List<List<String>> differenceList) {
+    for (List<String> field : differenceList) {
+      addField(field, field, filedMappings);
+    }
+    return filedMappings;
+  }
+
+  /**
+   * Add field to json element
+   *
+   * @param rootPath    absolute path of field
+   * @param path        relative path of the field
+   * @param jsonElement current json element
+   * @return updated json element
+   */
+  private JsonElement addField(List<String> rootPath, List<String> path, JsonElement jsonElement) {
+    if (jsonElement.isJsonObject()) {
+      if (!jsonElement.getAsJsonObject().has(path.get(0))) {
+        if (path.size() > 1) {
+          jsonElement.getAsJsonObject().add(path.get(0), addField(rootPath, path.subList(1, path.size()),
+                                                                  GSON.fromJson("{}", JsonElement.class)));
+        } else {
+          jsonElement.getAsJsonObject().add(path.get(0), GSON.toJsonTree(rootPath));
+        }
+      }
+    }
+    return jsonElement;
+  }
+
+  /**
+   * Return field mapping with/without unmapped fields based on config
+   *
+   * @param inputSchema {@link Schema} current input schema
+   * @return {@link JsonElement} field mapping
+   */
+  private JsonElement getFinalFieldMappingJson(Schema inputSchema) {
+    boolean includeNonMappedFields = createRecordTransformConfig.getIncludeNonMappedFields().equals("on");
+    final JsonElement fieldMappingJson = createRecordTransformConfig.getFieldMappingJson();
+    if (includeNonMappedFields) {
+      final List<List<String>> inputSchemaMap = generateFieldMapForInputSchema(new ArrayList<>(), inputSchema);
+      final List<List<String>> fieldMapToList = fieldMapToList(fieldMappingJson);
+      final List<List<String>> difference = differenceBetweenMaps(inputSchemaMap, fieldMapToList);
+      return includeMissingFields(fieldMappingJson, difference);
+    }
+    return fieldMappingJson;
+  }
+
   /**
    * Generate output schema
    */
@@ -198,15 +309,14 @@ public class CreateRecordTransform extends Transform<StructuredRecord, Structure
     if (output != null) {
       return output;
     }
-    boolean includeNonMappedFields = createRecordTransformConfig.getIncludeNonMappedFields().equals("on");
-    final JsonElement fieldMappingJson = createRecordTransformConfig.getFieldMappingJson();
+    final JsonElement fieldMappingJson = getFinalFieldMappingJson(inputSchema);
+
     if (fieldMappingJson.isJsonNull()) {
       collector.addFailure("Empty mapping field.", "Please provide valid mapping field.");
     }
     StructuredRecord.Builder builder;
     final Schema schema = generateFields(inputSchema, collector, "record",
                                          fieldMappingJson.getAsJsonObject());
-    // TODO - add/ignore out non mapped fields
     return schema;
   }
 
