@@ -1,7 +1,9 @@
 {
   "metadata": {
-    "spec-version": "1.0"
+    "spec-version": "1.0",
+    "label": "Create Record"
   },
+  "display-name" : "Create Record",
   "configuration-groups": [
     {
       "label": "Create Hierarchy Configuration",
