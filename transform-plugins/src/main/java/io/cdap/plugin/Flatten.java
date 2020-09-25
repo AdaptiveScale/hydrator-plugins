@@ -188,10 +188,9 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
    * Try to flatten fields of Records. <br>
    * For each field of record check if type is:  <br>
    *
-   * <p><b>Record</b>: try to flatten sub fields recursively until schema of field is not record or `levelToLimitFlattening`
-   * is reached and return {@link OutputFieldInfo} for flatten fields</p>
+   * <p><b>Record</b>: try to flatten sub fields recursively until schema of field is not record or
+   * `levelToLimitFlattening` is reached and return {@link OutputFieldInfo} for flatten fields</p>
    * <p></p><b>is not record</b>: return {@link OutputFieldInfo} for not flatten records</p>
-
    * <pre>
    *  Example:
    *    {
