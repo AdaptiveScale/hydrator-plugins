@@ -54,6 +54,10 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
   private Schema outputSchema;
   private Map<String, OutputFieldInfo> inputOutputMapping = Maps.newHashMap();
 
+  public Flatten(Config config) {
+    this.config = config;
+  }
+
   @Override
   public void configurePipeline(PipelineConfigurer pipelineConfigurer) {
     super.configurePipeline(pipelineConfigurer);
@@ -321,6 +325,12 @@ public final class Flatten extends Transform<StructuredRecord, StructuredRecord>
       "This can be used to fix conflicts that can occur if fields have the same name after flattening. " +
       "The prefix is added as <prefix>_<flattened_name >")
     private String prefix;
+
+    public Config(String fieldsToFlatten, @Nullable String levelToLimitFlattening, @Nullable String prefix) {
+      this.fieldsToFlatten = fieldsToFlatten;
+      this.levelToLimitFlattening = levelToLimitFlattening;
+      this.prefix = prefix;
+    }
 
     public List<String> getFieldsToFlatten() {
       if (containsMacro(PROPERTY_NAME_FIELDS_TO_MAP) || Strings.isNullOrEmpty(fieldsToFlatten)) {
