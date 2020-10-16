@@ -21,13 +21,12 @@ import io.cdap.cdap.api.annotation.Description;
 import io.cdap.cdap.api.annotation.Macro;
 import io.cdap.cdap.api.annotation.Name;
 import io.cdap.cdap.api.annotation.Plugin;
-import io.cdap.cdap.api.plugin.PluginProperties;
 import io.cdap.cdap.etl.api.FailureCollector;
 import io.cdap.cdap.etl.api.PipelineConfigurer;
 import io.cdap.cdap.etl.api.action.Action;
 import io.cdap.cdap.etl.api.action.ActionContext;
 import io.cdap.cdap.etl.api.action.SettableArguments;
-import io.cdap.plugin.ConnectionConfig;
+import io.cdap.plugin.BaseConnectionConfig;
 import io.cdap.plugin.DBManager;
 import io.cdap.plugin.DBUtils;
 import io.cdap.plugin.DriverCleanup;
@@ -67,12 +66,13 @@ public class DBArgumentSetter extends Action {
     throws IllegalArgumentException {
     DBManager dbManager = new DBManager(config);
     FailureCollector collector = pipelineConfigurer.getStageConfigurer().getFailureCollector();
-    dbManager.validateJDBCPluginPipeline(pipelineConfigurer, JDBC_PLUGIN_ID, collector);
+    Class<? extends Driver> driverClass = dbManager.validateJDBCPluginPipeline(pipelineConfigurer,
+                                                                               JDBC_PLUGIN_ID, collector);
+    config.validate(collector);
+    if (config.fieldsContainMacro()) {
+      return;
+    }
     try {
-      Class<? extends Driver> driverClass = pipelineConfigurer.usePluginClass(config.jdbcPluginType,
-                                                                              config.jdbcPluginName,
-                                                                              JDBC_PLUGIN_ID,
-                                                                              PluginProperties.builder().build());
       processArguments(driverClass, collector, null);
     } catch (SQLException e) {
       collector.addFailure("SQL error while executing query: " + e.getMessage(), null)
@@ -147,7 +147,7 @@ public class DBArgumentSetter extends Action {
   /**
    * Config for ArgumentSetter reading from database
    */
-  public abstract class DBArgumentSetterConfig extends ConnectionConfig {
+  public static class DBArgumentSetterConfig extends BaseConnectionConfig {
 
     public static final String DATABASE_NAME = "databaseName";
     public static final String TABLE_NAME = "tableName";
@@ -231,10 +231,10 @@ public class DBArgumentSetter extends Action {
       if (!containsMacro(CONNECTION_STRING) && Strings.isNullOrEmpty(this.connectionString)) {
         collector.addFailure("Invalid connection string.", "Connection string cannot be empty.");
       }
-      if (!containsMacro(ConnectionConfig.USER) && Strings.isNullOrEmpty(this.user)) {
+      if (!containsMacro(BaseConnectionConfig.USER) && Strings.isNullOrEmpty(this.user)) {
         collector.addFailure("Invalid username.", "Username cannot be empty.");
       }
-      if (!containsMacro(ConnectionConfig.PASSWORD) && Strings.isNullOrEmpty(this.password)) {
+      if (!containsMacro(BaseConnectionConfig.PASSWORD) && Strings.isNullOrEmpty(this.password)) {
         collector.addFailure("Invalid password.", "Password cannot be empty.");
       }
       if (!containsMacro(DATABASE_NAME) && Strings.isNullOrEmpty(this.getDatabaseName())) {
@@ -252,6 +252,16 @@ public class DBArgumentSetter extends Action {
         collector.addFailure("Invalid conditions.", "Filter conditions must be specified.");
       }
       collector.getOrThrowException();
+    }
+
+    public boolean fieldsContainMacro() {
+      return containsMacro(CONNECTION_STRING)
+        || containsMacro(BaseConnectionConfig.USER)
+        || containsMacro(BaseConnectionConfig.PASSWORD)
+        || containsMacro(DATABASE_NAME)
+        || containsMacro(TABLE_NAME)
+        || containsMacro(ARGUMENTS_COLUMNS)
+        || containsMacro(ARGUMENT_SELECTION_CONDITIONS);
     }
   }
 }
