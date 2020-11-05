@@ -213,7 +213,8 @@ public class DBSource extends ReferenceBatchSource<LongWritable, DBRecord, Struc
         query = removeConditionsClause(query);
       }
       ResultSet resultSet = statement.executeQuery(query);
-      return Schema.recordOf("outputSchema", DBUtils.getSchemaFields(resultSet, patternToReplace, replaceWith));
+      return Schema.recordOf("outputSchema", DBUtils.getSchemaFields(resultSet, patternToReplace, replaceWith,
+                                                                     null));
     } finally {
       driverCleanup.destroy();
     }
@@ -318,20 +319,20 @@ public class DBSource extends ReferenceBatchSource<LongWritable, DBRecord, Struc
     @Nullable
     @Name(PATTERN_TO_REPLACE)
     @Description("The pattern to replace in the field name in the table, it is typically used with the " +
-                   "Replace With config. If Replace With is not set, the pattern will be removed in the field name.")
+      "Replace With config. If Replace With is not set, the pattern will be removed in the field name.")
     String patternToReplace;
 
     @Nullable
     @Name(REPLACE_WITH)
     @Description("The string that will be replaced in the field name in the table, it must be used with the " +
-                   "Pattern To Replace config.")
+      "Pattern To Replace config.")
     String replaceWith;
 
     @Nullable
     @Name(FETCH_SIZE)
     @Macro
     @Description("The number of rows to fetch at a time per split. Larger fetch size can result in faster import, " +
-                  "with the tradeoff of higher memory usage.")
+      "with the tradeoff of higher memory usage.")
     Integer fetchSize;
 
     @Nullable

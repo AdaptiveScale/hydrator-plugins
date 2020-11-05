@@ -57,6 +57,7 @@ public final class DBUtils {
   public static final String REPLACE_WITH = "io.cdap.plugin.db.replace.with";
   public static final String CONNECTION_ARGUMENTS = "io.cdap.hydrator.db.connection.arguments";
   public static final String FETCH_SIZE = "io.cdap.hydrator.db.fetch.size";
+//  public static final String HANDLE_BIG_DECIMAL = "dsaf";
 
   /**
    * Performs any Database related cleanup
@@ -107,12 +108,13 @@ public final class DBUtils {
    * Given the result set, get the metadata of the result set and return
    * list of {@link io.cdap.cdap.api.data.schema.Schema.Field},
    * where name of the field is same as column name and type of the field is obtained using
-   * {@link DBUtils#getSchema(String, int, int, int, String)}
+   * {@link DBUtils#getSchema(String, int, int, int, String, boolean)}
    *
    * @param resultsetSchema the schema from the db
-   * @param schemaStr schema string to override resultant schema
+   * @param schemaStr       schema string to override resultant schema
    * @return list of schema fields
    */
+  //todo is important
   public static List<Schema.Field> getSchemaFields(Schema resultsetSchema, @Nullable String schemaStr) {
     Schema schema;
 
@@ -149,30 +151,32 @@ public final class DBUtils {
    * Given the result set, get the metadata of the result set and return
    * list of {@link io.cdap.cdap.api.data.schema.Schema.Field},
    * where name of the field is same as column name and type of the field is obtained using
-   * {@link DBUtils#getSchema(String, int, int, int, String)}
+   * {@link DBUtils#getSchema(String, int, int, int, String, boolean)}
    *
-   * @param resultSet result set of executed query
+   * @param resultSet    result set of executed query
+   * @param outputSchema
    * @return list of schema fields
    * @throws SQLException
    */
-  public static List<Schema.Field> getOriginalSchema(ResultSet resultSet) throws SQLException {
-    return getSchemaFields(resultSet, null, null);
+  public static List<Schema.Field> getOriginalSchema(ResultSet resultSet, Schema outputSchema) throws SQLException {
+    return getSchemaFields(resultSet, null, null, outputSchema);
   }
 
   /**
    * Given the result set, get the metadata of the result set and return
    * list of {@link io.cdap.cdap.api.data.schema.Schema.Field},
    * where name of the field is same as column name and type of the field is obtained using
-   * {@link DBUtils#getSchema(String, int, int, int, String)}
+   * {@link DBUtils#getSchema(String, int, int, int, String, boolean)}
    *
-   * @param resultSet result set of executed query
+   * @param resultSet        result set of executed query
    * @param patternToReplace the pattern to replace in the field name
-   * @param replaceWith the replacement value, if it is null, the pattern will be removed
+   * @param replaceWith      the replacement value, if it is null, the pattern will be removed
    * @return list of schema fields
    * @throws SQLException
    */
   public static List<Schema.Field> getSchemaFields(ResultSet resultSet, @Nullable String patternToReplace,
-                                                   @Nullable String replaceWith) throws SQLException {
+                                                   @Nullable String replaceWith, Schema outputSchema)
+    throws SQLException {
     List<Schema.Field> schemaFields = Lists.newArrayList();
     ResultSetMetaData metadata = resultSet.getMetaData();
     // ResultSetMetadata columns are numbered starting with 1
@@ -185,7 +189,19 @@ public final class DBUtils {
       int columnSqlPrecision = metadata.getPrecision(i); // total number of digits
       int columnSqlScale = metadata.getScale(i); // digits after the decimal point
       String columnTypeName = metadata.getColumnTypeName(i);
-      Schema columnSchema = getSchema(columnTypeName, columnSqlType, columnSqlPrecision, columnSqlScale, columnName);
+      boolean handleDecimalAsDouble = false;
+      if (columnSqlType == Types.DECIMAL && outputSchema != null) {
+        Schema.Field field = outputSchema.getField(columnName);
+        if (field != null) {
+          Schema schema = field.getSchema();
+          if (schema != null) {
+            schema = schema.isNullable() ? schema.getNonNullable() : schema;
+            handleDecimalAsDouble = schema.getType() == Schema.Type.DOUBLE;
+          }
+        }
+      }
+      Schema columnSchema = getSchema(columnTypeName, columnSqlType, columnSqlPrecision, columnSqlScale, columnName,
+                                      handleDecimalAsDouble);
       if (ResultSetMetaData.columnNullable == metadata.isNullable(i)) {
         columnSchema = Schema.nullableOf(columnSchema);
       }
@@ -196,8 +212,8 @@ public final class DBUtils {
   }
 
   // given a sql type return schema type
-  private static Schema getSchema(String typeName, int sqlType, int precision, int scale, String columnName)
-    throws SQLException {
+  private static Schema getSchema(String typeName, int sqlType, int precision, int scale, String columnName,
+                                  boolean handleDecimalAsDouble) throws SQLException {
     // Type.STRING covers sql types - VARCHAR,CHAR,CLOB,LONGNVARCHAR,LONGVARCHAR,NCHAR,NCLOB,NVARCHAR
     Schema.Type type = Schema.Type.STRING;
     switch (sqlType) {
@@ -232,13 +248,23 @@ public final class DBUtils {
         break;
 
       case Types.NUMERIC:
-      case Types.DECIMAL:
+        //variation
         // if there are no digits after the point, use integer types
         type = scale != 0 ? Schema.Type.DOUBLE :
           // with 10 digits we can represent 2^32 and LONG is required
           precision > 9 ? Schema.Type.LONG : Schema.Type.INT;
         break;
-
+      case Types.DECIMAL:
+        if (handleDecimalAsDouble) {
+          //variation
+          // if there are no digits after the point, use integer types
+          type = scale != 0 ? Schema.Type.DOUBLE :
+            // with 10 digits we can represent 2^32 and LONG is required
+            precision > 9 ? Schema.Type.LONG : Schema.Type.INT;
+          break;
+        } else {
+          return Schema.decimalOf(precision, scale);
+        }
       case Types.DOUBLE:
         type = Schema.Type.DOUBLE;
         break;
@@ -274,15 +300,15 @@ public final class DBUtils {
 
   @Nullable
   public static Object transformValue(int sqlType, int precision, int scale,
-                                      ResultSet resultSet, String fieldName) throws SQLException {
+                                      ResultSet resultSet, String fieldName, boolean handleDecimalAsDouble)
+    throws SQLException {
     Object original = resultSet.getObject(fieldName);
     if (original != null) {
       switch (sqlType) {
         case Types.SMALLINT:
         case Types.TINYINT:
           return ((Number) original).intValue();
-        case Types.NUMERIC:
-        case Types.DECIMAL:
+        case Types.NUMERIC: {
           BigDecimal decimal = (BigDecimal) original;
           if (scale != 0) {
             // if there are digits after the point, use double types
@@ -293,6 +319,23 @@ public final class DBUtils {
           } else {
             return decimal.intValue();
           }
+        }
+        case Types.DECIMAL: {
+          if (handleDecimalAsDouble) {
+            BigDecimal decimal = (BigDecimal) original;
+            if (scale != 0) {
+              // if there are digits after the point, use double types
+              return decimal.doubleValue();
+            } else if (precision > 9) {
+              // with 10 digits we can represent 2^32 and LONG is required
+              return decimal.longValue();
+            } else {
+              return decimal.intValue();
+            }
+          } else {
+            return original;
+          }
+        }
         case Types.DATE:
           return resultSet.getDate(fieldName);
         case Types.TIME:

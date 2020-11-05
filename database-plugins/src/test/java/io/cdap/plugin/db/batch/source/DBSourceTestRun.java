@@ -37,6 +37,8 @@ import io.cdap.plugin.common.Constants;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.nio.ByteBuffer;
 import java.sql.Date;
 import java.sql.Time;
@@ -151,8 +153,9 @@ public class DBSourceTestRun extends DatabasePluginTestBase {
     Assert.assertEquals(125.45, row2.get("REAL_COL"), 0.00001);
     Assert.assertEquals(124.45, row1.get("NUMERIC_COL"), 0.000001);
     Assert.assertEquals(125.45, row2.get("NUMERIC_COL"), 0.000001);
-    Assert.assertEquals(124.45, row1.get("DECIMAL_COL"), 0.000001);
-    Assert.assertNull(row2.get("DECIMAL_COL"));
+    Assert.assertEquals(new BigDecimal(124.45, new MathContext(5)).setScale(2),
+                        row1.getDecimal("DECIMAL_COL"));
+    Assert.assertNull(row2.getDecimal("DECIMAL_COL"));
     Assert.assertTrue(row1.get("BIT_COL"));
     Assert.assertFalse(row2.get("BIT_COL"));
     // Verify time columns
