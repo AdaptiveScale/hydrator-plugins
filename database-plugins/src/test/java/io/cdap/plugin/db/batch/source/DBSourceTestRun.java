@@ -37,6 +37,8 @@ import io.cdap.plugin.common.Constants;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.nio.ByteBuffer;
 import java.sql.Date;
 import java.sql.Time;
@@ -151,8 +153,8 @@ public class DBSourceTestRun extends DatabasePluginTestBase {
     Assert.assertEquals(125.45, row2.get("REAL_COL"), 0.00001);
     Assert.assertEquals(124.45, row1.get("NUMERIC_COL"), 0.000001);
     Assert.assertEquals(125.45, row2.get("NUMERIC_COL"), 0.000001);
-    Assert.assertEquals(124.45, row1.get("DECIMAL_COL"), 0.000001);
-    Assert.assertNull(row2.get("DECIMAL_COL"));
+    Assert.assertEquals(new BigDecimal(124.45, new MathContext(5)).setScale(2), row1.getDecimal("DECIMAL_COL"));
+    Assert.assertNull(row2.getDecimal("DECIMAL_COL"));
     Assert.assertTrue(row1.get("BIT_COL"));
     Assert.assertFalse(row2.get("BIT_COL"));
     // Verify time columns
@@ -218,7 +220,7 @@ public class DBSourceTestRun extends DatabasePluginTestBase {
     Assert.assertEquals(1, row1.<Integer>get("id").intValue());
     Assert.assertEquals(2, row2.<Integer>get("id").intValue());
   }
-  
+
   @Test
   public void testDbSourceMultipleTables() throws Exception {
     // have the same data in both tables ('\"my_table\"' and '\"your_table\"'), and select the ID and NAME fields from
@@ -284,8 +286,8 @@ public class DBSourceTestRun extends DatabasePluginTestBase {
     // null user name, null password. Should succeed.
     // as source
     ETLPlugin dbConfig = new ETLPlugin("Database", BatchSource.PLUGIN_TYPE, baseSourceProps, null);
-    ETLStage table = new ETLStage("uniqueTableSink" , sinkConfig);
-    ETLStage database = new ETLStage("databaseSource" , dbConfig);
+    ETLStage table = new ETLStage("uniqueTableSink", sinkConfig);
+    ETLStage database = new ETLStage("databaseSource", dbConfig);
     ETLBatchConfig etlConfig = ETLBatchConfig.builder()
       .addStage(database)
       .addStage(table)
