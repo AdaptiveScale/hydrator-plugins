@@ -57,7 +57,6 @@ public final class DBUtils {
   public static final String REPLACE_WITH = "io.cdap.plugin.db.replace.with";
   public static final String CONNECTION_ARGUMENTS = "io.cdap.hydrator.db.connection.arguments";
   public static final String FETCH_SIZE = "io.cdap.hydrator.db.fetch.size";
-//  public static final String HANDLE_BIG_DECIMAL = "dsaf";
 
   /**
    * Performs any Database related cleanup
@@ -111,10 +110,9 @@ public final class DBUtils {
    * {@link DBUtils#getSchema(String, int, int, int, String, boolean)}
    *
    * @param resultsetSchema the schema from the db
-   * @param schemaStr       schema string to override resultant schema
+   * @param schemaStr schema string to override resultant schema
    * @return list of schema fields
    */
-  //todo is important
   public static List<Schema.Field> getSchemaFields(Schema resultsetSchema, @Nullable String schemaStr) {
     Schema schema;
 
@@ -168,9 +166,9 @@ public final class DBUtils {
    * where name of the field is same as column name and type of the field is obtained using
    * {@link DBUtils#getSchema(String, int, int, int, String, boolean)}
    *
-   * @param resultSet        result set of executed query
+   * @param resultSet result set of executed query
    * @param patternToReplace the pattern to replace in the field name
-   * @param replaceWith      the replacement value, if it is null, the pattern will be removed
+   * @param replaceWith the replacement value, if it is null, the pattern will be removed
    * @return list of schema fields
    * @throws SQLException
    */
@@ -248,7 +246,6 @@ public final class DBUtils {
         break;
 
       case Types.NUMERIC:
-        //variation
         // if there are no digits after the point, use integer types
         type = scale != 0 ? Schema.Type.DOUBLE :
           // with 10 digits we can represent 2^32 and LONG is required
@@ -256,7 +253,6 @@ public final class DBUtils {
         break;
       case Types.DECIMAL:
         if (handleDecimalAsDouble) {
-          //variation
           // if there are no digits after the point, use integer types
           type = scale != 0 ? Schema.Type.DOUBLE :
             // with 10 digits we can represent 2^32 and LONG is required
