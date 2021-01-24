@@ -28,10 +28,10 @@
   <modelVersion>4.0.0</modelVersion>
 
   <repositories>
-    <repository>
-      <id>cloudera</id>
-      <url>https://repository.cloudera.com/artifactory/cloudera-repos/</url>
-    </repository>
+<!--    <repository>-->
+<!--      <id>cloudera</id>-->
+<!--      <url>https://repository.cloudera.com/artifactory/cloudera-repos/</url>-->
+<!--    </repository>-->
   </repositories>
 
   <dependencies>
@@ -51,7 +51,7 @@
     <dependency>
       <groupId>org.apache.hive.hcatalog</groupId>
       <artifactId>hive-hcatalog-core</artifactId>
-      <version>${cdh.hive.version}</version>
+      <version>${hive.version}</version>
       <exclusions>
         <exclusion>
           <groupId>org.apache.avro</groupId>
@@ -82,7 +82,7 @@
     <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-metastore</artifactId>
-      <version>${cdh.hive.version}</version>
+      <version>${hive.version}</version>
       <exclusions>
         <exclusion>
           <groupId>commons-logging</groupId>
@@ -122,6 +122,11 @@
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>
     </dependency>
+    <dependency>
+      <groupId>commons-codec</groupId>
+      <artifactId>commons-codec</artifactId>
+      <version>1.14</version>
+    </dependency>
   </dependencies>
 
   <build>
@@ -134,7 +139,7 @@
         <configuration>
           <instructions>
             <_exportcontents>io.cdap.plugin.batch.*;org.apache.commons.lang;org.apache.hive.hcatalog.*;
-              org.apache.hadoop.hive.metastore.*;org.apache.hadoop.hive.ql.io.avro
+              org.apache.hadoop.hive.metastore.*;org.apache.hadoop.hive.ql.io.avro;org.apache.commons.codec.*;
             </_exportcontents>
             <Embed-Dependency>*;inline=false;scope=compile</Embed-Dependency>
             <Embed-Transitive>true</Embed-Transitive>

@@ -89,8 +89,8 @@ public class AvroGenericRecordReader implements
 
       // Iterate over the Path -> Partition descriptions to find the partition
       // that matches our input split.
-      for (Map.Entry<String,PartitionDesc> pathsAndParts: mapWork.getPathToPartitionInfo().entrySet()){
-        String partitionPath = pathsAndParts.getKey();
+      for (Map.Entry<Path,PartitionDesc> pathsAndParts: mapWork.getPathToPartitionInfo().entrySet()){
+        String partitionPath = pathsAndParts.getKey().toString();
         if(pathIsInPartition(split.getPath(), partitionPath)) {
           if(LOG.isInfoEnabled()) {
             LOG.info("Matching partition " + partitionPath +
